@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KZKAR · Balance Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f4f2; color: #1a1a18; }
+
+.app-header { background: #fff; border-bottom: 1px solid #e5e4e0; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.app-title { font-size: 15px; font-weight: 600; }
+.app-sub { font-size: 12px; color: #888; margin-top: 2px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.live-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; background: #e8f5e9; color: #2e7d32; border-radius: 20px; padding: 3px 10px; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: #4caf50; animation: blink 1.5s infinite; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
+.btn-sm { background: none; border: 1px solid #e0e0dc; border-radius: 8px; padding: 6px 12px; font-size: 12px; color: #666; cursor: pointer; }
+.btn-sm:hover { background: #f0f0ee; }
+
+.body { padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+
+#status { background: #fff; border: 1px solid #e5e4e0; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #666; }
+.sdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sdot.ok { background: #4caf50; }
+.sdot.loading { background: #f0c040; animation: blink 1s infinite; }
+.sdot.error { background: #e05050; }
+
+.proj-tabs { display: flex; gap: 6px; margin-bottom: 20px; }
+.ptab { padding: 8px 18px; font-size: 13px; font-weight: 500; border-radius: 8px; border: 1px solid #e0e0dc; background: #fff; color: #666; cursor: pointer; transition: all .15s; }
+.ptab.active { background: #4a6fa5; color: #fff; border-color: #4a6fa5; }
+.psect { display: none; }
+.psect.active { display: block; }
+
+.proj-title { font-size: 18px; font-weight: 600; margin-bottom: 3px; }
+.proj-meta { font-size: 12px; color: #888; margin-bottom: 16px; }
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 10px; border-radius: 20px; margin-left: 8px; }
+.badge-bad  { background: #fde8e8; color: #a03030; }
+.badge-ok   { background: #e8f5e9; color: #2e7d32; }
+.badge-warn { background: #fff8e1; color: #b88a1a; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 16px; }
+.kpi { background: #fff; border: 1px solid #e5e4e0; border-radius: 12px; padding: 12px 14px; }
+.kl { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing:.05em; margin-bottom:4px; }
+.kv { font-size: 18px; font-weight: 600; }
+.ks { font-size: 11px; color: #888; margin-top:3px; }
+
+.card { background: #fff; border: 1px solid #e5e4e0; border-radius: 12px; padding: 18px 20px 22px; margin-bottom: 16px; }
+.card-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.card-sub { font-size: 11px; color: #888; margin-bottom: 24px; }
+
+.bars-outer { display: flex; justify-content: center; align-items: flex-end; gap: 52px; min-height: 290px; }
+.bar-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.bar-lbl { font-size: 11px; font-weight: 600; color: #4a6fa5; text-align: center; max-width: 100px; line-height: 1.4; }
+.bar-inc-wrap { display: flex; align-items: flex-end; gap: 6px; }
+.bar-inc-lbl { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 9px; color: #bbb; white-space: nowrap; }
+.stacked-bar { width: 96px; border-radius: 8px; border: 2px dashed #aab; display: flex; flex-direction: column; overflow: visible; }
+
+.seg { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px 4px; cursor: pointer; position: relative; transition: filter .12s; min-height: 22px; }
+.seg:hover { filter: brightness(1.07); }
+.seg:first-child { border-radius: 6px 6px 0 0; }
+.seg:last-child  { border-radius: 0 0 6px 6px; }
+.seg-n { font-size: 10px; font-weight: 600; color: #222; pointer-events: none; }
+.seg-v { font-size: 9px; color: #333; pointer-events: none; }
+.seg-p { font-size: 9px; color: #555; pointer-events: none; }
+.has-subs::after { content:''; position:absolute; right:5px; top:50%; transform:translateY(-50%); width:5px; height:5px; border-radius:50%; background:rgba(0,0,0,.2); }
+
+.legend { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+.li { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #888; }
+.ld { width: 9px; height: 9px; border-radius: 2px; }
+
+/* Employee table */
+.emp-card { background: #fff; border: 1px solid #e5e4e0; border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+.emp-head { padding: 14px 16px 10px; font-size: 13px; font-weight: 600; border-bottom: 1px solid #f0f0ee; display: flex; justify-content: space-between; align-items: center; }
+.emp-head-right { font-size: 12px; font-weight: 400; color: #888; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { background: #f7f7f5; padding: 8px 12px; text-align: left; font-weight: 500; color: #666; font-size: 11px; border-bottom: 1px solid #e5e4e0; }
+td { padding: 8px 12px; border-bottom: 1px solid #f5f5f3; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafaf8; }
+.bar-bg { height: 6px; background: #f0f0ee; border-radius: 3px; display:inline-block; width:120px; vertical-align:middle; }
+.bar-fill { height: 6px; border-radius: 3px; background: #a8c4e0; display:inline-block; }
+.mono { font-family: monospace; font-size: 10px; color: #aaa; }
+.pct { color: #888; }
+
+/* Floating tooltip */
+.ftip { position: fixed; z-index: 99999; background: #fff; border: 1px solid #e0e0dc; border-radius: 14px; padding: 14px; pointer-events: none; opacity: 0; transition: opacity .15s; width: 214px; box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+.ftip.vis { opacity: 1; }
+.ftip-title { font-size: 12px; font-weight: 600; text-align: center; margin-bottom: 4px; }
+.ftip-sub { font-size: 10px; color: #aaa; text-align: center; margin-bottom: 10px; }
+.ftip-leg { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.ftip-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #444; }
+.ftip-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.ftip-v { margin-left: auto; font-weight: 500; font-size: 10px; }
+
+.grn { color: #3a7d28; } .red { color: #a03030; } .amb { color: #b88a1a; }
+.spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid #e0e0dc; border-top-color: #4a6fa5; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.load-row td { text-align: center; color: #aaa; padding: 20px; }
+
+@media (max-width: 640px) {
+  .kpi-row { grid-template-columns: repeat(2,1fr); }
+  .bars-outer { gap: 20px; }
+  .stacked-bar { width: 70px; }
+  .body { padding: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div>
+    <div class="app-title">KZKAR · Атамекен (Каркарали)</div>
+    <div class="app-sub" id="hdr-sub">Загрузка данных...</div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div>BC + SharePoint</div>
+    <button class="btn-sm" onclick="loadAll()">↻ Обновить</button>
+  </div>
+</div>
+
+<div class="body">
+  <div id="status"><div class="sdot loading" id="sdot"></div><span id="stxt">Подключаюсь к Business Central...</span></div>
+
+  <div class="proj-tabs">
+    <button class="ptab active" onclick="showProj('cd00a')">KZKAR-CD00A</button>
+    <button class="ptab" onclick="showProj('ce02')">KZKAR-CE02</button>
+    <button class="ptab" onclick="showProj('ce03')">KZKAR-CE03</button>
+  </div>
+
+  <!-- CD00A -->
+  <div id="p-cd00a" class="psect active">
+    <div class="proj-title">KZKAR-CD00A <span class="badge badge-bad" id="bdg-cd00a">⚠ Перерасход</span></div>
+    <div class="proj-meta">Реконцепт MasterPlan · 21.10.2025 — 01.03.2026 · SSSKZ · Ревизия 00</div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kl">GI (договор)</div><div class="kv">56 700 €</div></div>
+      <div class="kpi"><div class="kl">GE план</div><div class="kv amb">35 055 €</div><div class="ks">OPR 17 207 · ADM 17 848</div></div>
+      <div class="kpi"><div class="kl">GE факт (BC)</div><div class="kv" id="gef-cd00a">—</div><div class="ks" id="gef-sub-cd00a">загрузка...</div></div>
+      <div class="kpi"><div class="kl">Прибыль прогноз</div><div class="kv" id="prf-cd00a">—</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Детальный баланс · Base PLAN / FACT / Прогноз</div>
+      <div class="card-sub">Наведи на OPR или ADM — бублик с составом статей</div>
+      <div class="bars-outer" id="bars-cd00a"></div>
+      <div class="legend" id="leg-cd00a"></div>
+    </div>
+    <div class="emp-card">
+      <div class="emp-head">In-House · KZKAR-CD00A · по сотрудникам<span class="emp-head-right" id="etot-cd00a"></span></div>
+      <table><thead><tr><th>Код</th><th>Сотрудник</th><th>Часы</th><th>Стоимость EUR</th><th>Доля</th></tr></thead>
+      <tbody id="etb-cd00a"><tr class="load-row"><td colspan="5"><span class="spinner"></span>Загрузка из Business Central...</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- CE02 -->
+  <div id="p-ce02" class="psect">
+    <div class="proj-title">KZKAR-CE02 <span class="badge badge-bad">⚠ Убыток в плане</span></div>
+    <div class="proj-meta">Ескізний проєкт 2 кварталу · SSSKZ</div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kl">GI (договор)</div><div class="kv">119 898 €</div></div>
+      <div class="kpi"><div class="kl">GE план</div><div class="kv red">139 249 €</div><div class="ks">превышает договор</div></div>
+      <div class="kpi"><div class="kl">GE факт (BC)</div><div class="kv" id="gef-ce02">—</div><div class="ks" id="gef-sub-ce02">загрузка...</div></div>
+      <div class="kpi"><div class="kl">Прибыль прогноз</div><div class="kv red">−19 351 €</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Детальный баланс · Base PLAN / FACT / Прогноз</div>
+      <div class="card-sub">Наведи на OPR или ADM — бублик с составом статей</div>
+      <div class="bars-outer" id="bars-ce02"></div>
+      <div class="legend" id="leg-ce02"></div>
+    </div>
+    <div class="emp-card">
+      <div class="emp-head">In-House · KZKAR-CE02 · по сотрудникам<span class="emp-head-right" id="etot-ce02"></span></div>
+      <table><thead><tr><th>Код</th><th>Сотрудник</th><th>Часы</th><th>Стоимость EUR</th><th>Доля</th></tr></thead>
+      <tbody id="etb-ce02"><tr class="load-row"><td colspan="5"><span class="spinner"></span>Загрузка из Business Central...</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- CE03 -->
+  <div id="p-ce03" class="psect">
+    <div class="proj-title">KZKAR-CE03 <span class="badge badge-ok">✓ В норме</span></div>
+    <div class="proj-meta">Ескізний проєкт 3 кварталу · декабрь 2025 — июль 2026 · SSSKZ</div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kl">GI (договор)</div><div class="kv">109 584 €</div></div>
+      <div class="kpi"><div class="kl">GE план</div><div class="kv amb">89 930 €</div><div class="ks">82% от договора</div></div>
+      <div class="kpi"><div class="kl">GE факт (BC)</div><div class="kv" id="gef-ce03">—</div><div class="ks" id="gef-sub-ce03">загрузка...</div></div>
+      <div class="kpi"><div class="kl">Прибыль прогноз</div><div class="kv grn">+19 654 €</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Детальный баланс · Base PLAN / FACT / Прогноз</div>
+      <div class="card-sub">Наведи на OPR или ADM — бублик с составом статей</div>
+      <div class="bars-outer" id="bars-ce03"></div>
+      <div class="legend" id="leg-ce03"></div>
+    </div>
+    <div class="emp-card">
+      <div class="emp-head">In-House · KZKAR-CE03 · по сотрудникам<span class="emp-head-right" id="etot-ce03"></span></div>
+      <table><thead><tr><th>Код</th><th>Сотрудник</th><th>Часы</th><th>Стоимость EUR</th><th>Доля</th></tr></thead>
+      <tbody id="etb-ce03"><tr class="load-row"><td colspan="5"><span class="spinner"></span>Загрузка из Business Central...</td></tr></tbody></table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Tooltip -->
+<div class="ftip" id="ftip">
+  <div class="ftip-title" id="ft-t"></div>
+  <div class="ftip-sub"   id="ft-s"></div>
+  <canvas id="ft-c" width="148" height="148"></canvas>
+  <div class="ftip-leg"   id="ft-l"></div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────
+// API_BASE points to your Vercel deployment
+const API_BASE = window.location.origin + '/api/bc';
+
+const PROJS = {
+  'cd00a': { code:'KZKAR-CD00A', gi:56700,  gePlan:35055,  opr:17207, adm:17848, profit:21645 },
+  'ce02':  { code:'KZKAR-CE02',  gi:119898, gePlan:139249, opr:52646, adm:86252, profit:-19351 },
+  'ce03':  { code:'KZKAR-CE03',  gi:109584, gePlan:89930,  opr:34000, adm:55930, profit:19654  },
+};
+
+const C = {
+  opr:'#a8c4e0', inh:'#5b8fc9', sub:'#7bafd8', inh2:'#3a7abf', inh3:'#2d6aad', inh4:'#6699cc', inh5:'#4477aa',
+  adm:'#f5c97a', admF:'#e8a020', soc:'#f0b84a', tax:'#f5d090',
+  profit:'#9ecf8a', loss:'#f09090',
+};
+
+let activeChart = null;
+const built = {};
+const empData = {};  // cached BC data per project
+
+// ── BC API ────────────────────────────────────────────────────────────────
+async function bcGet(endpoint) {
+  const r = await fetch(`${API_BASE}?endpoint=${encodeURIComponent(endpoint)}`);
+  if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.error || `HTTP ${r.status}`); }
+  return r.json();
+}
+
+// ── LOAD ALL ──────────────────────────────────────────────────────────────
+async function loadAll() {
+  setStatus('loading', 'Подключаюсь к Business Central...');
+  built['cd00a'] = built['ce02'] = built['ce03'] = false;
+  document.getElementById('bars-cd00a').innerHTML = '';
+  document.getElementById('bars-ce02').innerHTML  = '';
+  document.getElementById('bars-ce03').innerHTML  = '';
+
+  try {
+    // Get company info
+    setStatus('loading', 'Получаю список компаний BC...');
+    const companies = await bcGet('companies');
+    const company = companies.value?.[0];
+    if (!company) throw new Error('Компании BC не найдены');
+    const companyId = company.id;
+
+    document.getElementById('hdr-sub').textContent = `BC: ${company.displayName || company.name}`;
+
+    // Load all projects in parallel — try multiple endpoints
+    setStatus('loading', 'Загружаю данные по проектам KZKAR...');
+    await Promise.all([
+      loadProjBC(companyId, 'cd00a'),
+      loadProjBC(companyId, 'ce02'),
+      loadProjBC(companyId, 'ce03'),
+    ]);
+
+    setStatus('ok', `Данные из BC обновлены · ${new Date().toLocaleTimeString('ru-RU')}`);
+    buildBars('cd00a');
+
+  } catch(e) {
+    console.error('BC error:', e);
+    setStatus('error', `BC: ${e.message} — данные из SharePoint`);
+    useFallback('cd00a'); useFallback('ce02'); useFallback('ce03');
+    buildBars('cd00a');
+  }
+}
+
+async function loadProjBC(companyId, projKey) {
+  const proj = PROJS[projKey];
+  try {
+    // Try 1: timeRegistrationEntries (standard v2.0)
+    const filter1 = encodeURIComponent(`jobNo eq '${proj.code}'`);
+    let data = await bcGet(
+      `companies(${companyId})/timeRegistrationEntries?$filter=${filter1}&$top=500`
+    ).catch(() => null);
+
+    // Try 2: generalLedgerEntries with job dimension
+    if (!data || !data.value?.length) {
+      const filter2 = encodeURIComponent(`shortcutDimension1Code eq '${proj.code}'`);
+      data = await bcGet(
+        `companies(${companyId})/generalLedgerEntries?$filter=${filter2}&$top=500`
+      ).catch(() => null);
+    }
+
+    // Try 3: OData v4 custom page if exists
+    if (!data || !data.value?.length) {
+      data = await bcGet(
+        `companies(${companyId})/jobLedgerEntries?$filter=${encodeURIComponent(`jobNo eq '${proj.code}'`)}&$top=500`
+      ).catch(() => null);
+    }
+
+    const entries = data.value || [];
+    const map = {};
+    let totalCost = 0, totalHours = 0;
+
+    entries.forEach(e => {
+      const key  = e.resourceNo || 'UNK';
+      const name = e.description || key;
+      const cost = Math.abs(parseFloat(e.totalCostLCY || 0));
+      const hrs  = Math.abs(parseFloat(e.quantity || 0));
+      if (!map[key]) map[key] = { code:key, name, cost:0, hours:0 };
+      map[key].cost   += cost;
+      map[key].hours  += hrs;
+      totalCost  += cost;
+      totalHours += hrs;
+    });
+
+    const list = Object.values(map).filter(e=>e.cost>0).sort((a,b)=>b.cost-a.cost);
+    empData[projKey] = { list, totalCost, totalHours, source: 'BC' };
+    renderEmpTable(projKey);
+    updateKPIs(projKey, totalCost);
+
+  } catch(e) {
+    console.warn(`${projKey} BC error:`, e.message);
+    useFallback(projKey);
+  }
+}
+
+// ── FALLBACK (SharePoint data) ────────────────────────────────────────────
+const FALLBACK = {
+  'cd00a': { totalCost: 45907, list: [
+    { code:'DLA', name:'Dmytro Larin',          hours:400,   cost:8400  },
+    { code:'IKA', name:'Inna Kasian',            hours:250,   cost:5000  },
+    { code:'APT', name:'Andrii Ptashnichenko',   hours:250,   cost:6750  },
+    { code:'OKO', name:'Oleksii Koptev',         hours:120,   cost:2400  },
+    { code:'PSH', name:'Polina Shumakova',       hours:150,   cost:600   },
+    { code:'ORY', name:'Oleksandr Rybalka',      hours:88,    cost:880   },
+  ]},
+  'ce02': { totalCost: 94340, list: [
+    { code:'IKA', name:'Inna Kasian',            hours:22000, cost:22000 },
+    { code:'ORY', name:'Oleksandr Rybalka',      hours:1540,  cost:16940 },
+    { code:'KTS', name:'Kyrylo Tsimokh',         hours:946,   cost:9460  },
+    { code:'DLA', name:'Dmytro Larin',           hours:400,   cost:8000  },
+    { code:'APT', name:'Andrii Ptashnichenko',   hours:2500,  cost:2500  },
+    { code:'ITR', name:'Ivan Trushchenko',       hours:660,   cost:660   },
+    { code:'PSH', name:'Polina Shumakova',       hours:255,   cost:255   },
+  ]},
+  'ce03': { totalCost: 30184, list: [
+    { code:'IKA', name:'Inna Kasian',            hours:30000, cost:30000 },
+    { code:'KTS', name:'Kyrylo Tsimokh',         hours:946,   cost:9460  },
+    { code:'DLA', name:'Dmytro Larin',           hours:800,   cost:3200  },
+    { code:'APT', name:'Andrii Ptashnichenko',   hours:2500,  cost:2500  },
+    { code:'ORY', name:'Oleksandr Rybalka',      hours:88,    cost:880   },
+  ]},
+};
+
+function useFallback(projKey) {
+  const fb = FALLBACK[projKey];
+  empData[projKey] = { list: fb.list, totalCost: fb.totalCost, totalHours: 0, source: 'SharePoint' };
+  renderEmpTable(projKey);
+  updateKPIs(projKey, fb.totalCost);
+}
+
+// ── RENDER EMPLOYEES ──────────────────────────────────────────────────────
+function renderEmpTable(projKey) {
+  const d = empData[projKey];
+  if (!d) return;
+  const tbody = document.getElementById(`etb-${projKey}`);
+  const totEl = document.getElementById(`etot-${projKey}`);
+  totEl.textContent = `Итого: ${fmt(d.totalCost)} EUR · источник: ${d.source}`;
+
+  const max = Math.max(...d.list.map(e=>e.cost), 1);
+  tbody.innerHTML = d.list.map(e => {
+    const pct  = d.totalCost > 0 ? Math.round((e.cost/d.totalCost)*100) : 0;
+    const barW = Math.round((e.cost/max)*120);
+    return `<tr>
+      <td><span class="mono">${e.code}</span></td>
+      <td>${e.name}</td>
+      <td style="text-align:right;color:#888">${e.hours>0 ? Math.round(e.hours)+' ч' : '—'}</td>
+      <td style="text-align:right;font-weight:500">${fmt(e.cost)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="bar-bg"><div class="bar-fill" style="width:${barW}px"></div></div>
+          <span class="pct">${pct}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── UPDATE KPIs ───────────────────────────────────────────────────────────
+function updateKPIs(projKey, geFact) {
+  const p = PROJS[projKey];
+  const diff = geFact - p.gePlan;
+  const profit = p.gi - geFact;
+  document.getElementById(`gef-${projKey}`).textContent = fmt(geFact);
+  document.getElementById(`gef-${projKey}`).className = 'kv ' + (diff > 0 ? 'red' : 'grn');
+  document.getElementById(`gef-sub-${projKey}`).textContent = (diff>0?'+':'')+fmt(diff)+' к плану';
+  if (projKey === 'cd00a') {
+    document.getElementById('prf-cd00a').textContent = fmt(profit);
+    document.getElementById('prf-cd00a').className = 'kv ' + (profit>=0?'grn':'red');
+  }
+}
+
+// ── BUILD BARS ────────────────────────────────────────────────────────────
+function buildBars(projKey) {
+  if (built[projKey]) return;
+  built[projKey] = true;
+
+  const p   = PROJS[projKey];
+  const d   = empData[projKey] || FALLBACK[projKey];
+  const gef = d.totalCost;
+  const oprF = Math.round(gef * 0.555);
+  const admF = Math.round(gef * 0.445);
+
+  // Build In-House subs from employee data
+  const empList = (d.list || []).slice(0,5);
+  const empColors = [C.inh, C.inh2, C.inh3, C.inh4, C.inh5];
+  const inhSubs = empList.map((e,i) => ({
+    name: e.name.split(' ').slice(0,2).join(' '),
+    val: Math.round(e.cost * 0.555),
+    color: empColors[i % empColors.length]
+  }));
+
+  const plans = [
+    { label:'Base PLAN', inc:p.gi, segs:[
+      { id:'opr', name:'OPR', val:p.opr, color:C.opr, subs:[
+        { name:'In-House',       val:Math.round(p.opr*.765), color:C.inh },
+        { name:'Subcontractors', val:Math.round(p.opr*.235), color:C.sub },
+      ]},
+      { id:'adm', name:'ADM', val:p.adm, color:C.adm, subs:[
+        { name:'Admin Fund', val:Math.round(p.adm*.702), color:C.admF },
+        { name:'Social Fund',val:Math.round(p.adm*.027), color:C.soc  },
+        { name:'Taxes',      val:Math.round(p.adm*.271), color:C.tax  },
+      ]},
+      { id:p.profit>=0?'profit':'loss', name:'Profit', val:Math.abs(p.profit), color:p.profit>=0?C.profit:C.loss, subs:[] },
+    ]},
+    { label:'FACT', inc:p.gi, segs:[
+      { id:'opr', name:'OPR факт', val:oprF, color:C.opr,
+        subs: inhSubs.length ? inhSubs : [
+          { name:'In-House',       val:Math.round(oprF*.765), color:C.inh },
+          { name:'Subcontractors', val:Math.round(oprF*.235), color:C.sub },
+        ]
+      },
+      { id:'adm', name:'ADM факт', val:admF, color:C.adm, subs:[
+        { name:'Admin Fund', val:Math.round(admF*.702), color:C.admF },
+        { name:'Social Fund',val:Math.round(admF*.027), color:C.soc  },
+        { name:'Taxes',      val:Math.round(admF*.271), color:C.tax  },
+      ]},
+      { id:(p.gi-gef)>=0?'profit':'loss', name:'В кассе', val:Math.abs(p.gi-gef), color:(p.gi-gef)>=0?C.profit:C.loss, subs:[] },
+    ]},
+    { label:'Прогноз', inc:p.gi, segs:[
+      { id:'opr', name:'OPR прогноз', val:p.opr, color:C.opr, subs:[
+        { name:'In-House',       val:Math.round(p.opr*.765), color:C.inh },
+        { name:'Subcontractors', val:Math.round(p.opr*.235), color:C.sub },
+      ]},
+      { id:'adm', name:'ADM прогноз', val:p.adm, color:C.adm, subs:[
+        { name:'Admin Fund', val:Math.round(p.adm*.702), color:C.admF },
+        { name:'Social Fund',val:Math.round(p.adm*.027), color:C.soc  },
+        { name:'Taxes',      val:Math.round(p.adm*.271), color:C.tax  },
+      ]},
+      { id:p.profit>=0?'profit':'loss', name:'Прогноз', val:Math.abs(p.profit), color:p.profit>=0?C.profit:C.loss, subs:[] },
+    ]},
+  ];
+
+  const wrap = document.getElementById(`bars-${projKey}`);
+  const legW = document.getElementById(`leg-${projKey}`);
+  wrap.innerHTML = '';
+  const maxH = 270;
+  const maxTotal = Math.max(...plans.map(pl=>pl.segs.reduce((s,sg)=>s+sg.val,0)));
+
+  plans.forEach((plan) => {
+    const total = plan.segs.reduce((s,sg)=>s+sg.val,0);
+    const barH  = Math.round((total/maxTotal)*maxH);
+    const col   = el('div','bar-col');
+    const lbl   = el('div','bar-lbl'); lbl.textContent=plan.label;
+    const outer = el('div','bar-inc-wrap');
+    const incL  = el('div','bar-inc-lbl'); incL.textContent=`INC ${fmt(plan.inc)} · 100%`;
+    const bar   = el('div','stacked-bar'); bar.style.height=barH+'px';
+
+    plan.segs.forEach(seg => {
+      const pct  = Math.round((seg.val/total)*100);
+      const segH = Math.max(Math.round((seg.val/total)*barH), 22);
+      const hasSubs = seg.subs?.length > 0;
+      const s = el('div', 'seg' + (hasSubs?' has-subs':''));
+      s.style.cssText = `background:${seg.color};height:${segH}px`;
+      s.innerHTML = `<span class="seg-n">${seg.name}</span><span class="seg-v">${fmt(seg.val)}</span><span class="seg-p">${pct}%</span>`;
+      if (hasSubs) {
+        s.addEventListener('mouseenter', e=>showTip(e,seg,plan.label));
+        s.addEventListener('mousemove',  e=>moveTip(e));
+        s.addEventListener('mouseleave', ()=>hideTip());
+      }
+      bar.appendChild(s);
+    });
+
+    outer.appendChild(incL); outer.appendChild(bar);
+    col.appendChild(lbl); col.appendChild(outer);
+    wrap.appendChild(col);
+  });
+
+  legW.innerHTML = [
+    {color:C.opr,  label:'OPR'}, {color:C.inh, label:'— In-House'},
+    {color:C.sub,  label:'— Subcontractors'}, {color:C.adm, label:'ADM'},
+    {color:C.admF, label:'— Admin Fund'}, {color:C.soc, label:'— Social Fund'},
+    {color:C.tax,  label:'— Taxes'}, {color:C.profit, label:'Profit'},
+    {color:C.loss, label:'Убыток'},
+  ].map(i=>`<div class="li"><div class="ld" style="background:${i.color}"></div>${i.label}</div>`).join('');
+}
+
+// ── TOOLTIP ───────────────────────────────────────────────────────────────
+const ftip=document.getElementById('ftip');
+function showTip(e,seg,planLabel) {
+  if(!seg.subs?.length) return;
+  const total=seg.subs.reduce((s,x)=>s+x.val,0);
+  document.getElementById('ft-t').textContent=seg.name;
+  document.getElementById('ft-s').textContent=planLabel+' · '+fmt(seg.val);
+  document.getElementById('ft-l').innerHTML=seg.subs.map(s=>{
+    const p=Math.round((s.val/total)*100);
+    return `<div class="ftip-row"><div class="ftip-dot" style="background:${s.color}"></div>${s.name}<span class="ftip-v">${fmt(s.val)} <span style="color:#aaa">·${p}%</span></span></div>`;
+  }).join('');
+  if(activeChart){activeChart.destroy();activeChart=null;}
+  const ctx=document.getElementById('ft-c').getContext('2d');
+  activeChart=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:seg.subs.map(s=>s.val),backgroundColor:seg.subs.map(s=>s.color),borderWidth:2,borderColor:'#fff'}]},options:{responsive:false,plugins:{legend:{display:false},tooltip:{enabled:false}},cutout:'50%'}});
+  moveTip(e); ftip.classList.add('vis');
+}
+function moveTip(e){
+  const tw=220,th=300,vw=window.innerWidth,vh=window.innerHeight;
+  let l=e.clientX+18,t=e.clientY-60;
+  if(l+tw>vw)l=e.clientX-tw-18; if(t+th>vh)t=vh-th-10; if(t<10)t=10;
+  ftip.style.left=l+'px'; ftip.style.top=t+'px';
+}
+function hideTip(){ftip.classList.remove('vis');}
+
+// ── TABS ──────────────────────────────────────────────────────────────────
+function showProj(id){
+  document.querySelectorAll('.ptab').forEach((t,i)=>t.classList.toggle('active',['cd00a','ce02','ce03'][i]===id));
+  document.querySelectorAll('.psect').forEach(s=>s.classList.remove('active'));
+  document.getElementById('p-'+id).classList.add('active');
+  buildBars(id);
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────
+function fmt(v){return(v<0?'−':'')+'€'+Math.abs(Math.round(v)).toLocaleString('ru-RU');}
+function el(tag,cls){const e=document.createElement(tag);if(cls)e.className=cls;return e;}
+function setStatus(type,msg){document.getElementById('sdot').className='sdot '+type;document.getElementById('stxt').textContent=msg;}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+loadAll();
+</script>
+</body>
+</html>
