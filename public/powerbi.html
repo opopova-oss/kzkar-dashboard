@@ -5,3 +5,86 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SSS · Power BI Report</title>
 <script src="https://cdn.jsdelivr.net/npm/powerbi-client@2.23.1/dist/powerbi.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a1a;height:100vh;display:flex;flex-direction:column}
+.header{background:#fff;border-bottom:1px solid #e5e7eb;padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{width:28px;height:28px;background:#1a1a1a;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px}
+.logo-text{font-weight:600;font-size:14px}
+.logo-sub{font-size:11px;color:#888;margin-top:1px}
+.back-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#4a6fa5;text-decoration:none;padding:6px 12px;border:1px solid #e0e0dc;border-radius:8px;background:none;cursor:pointer}
+.live-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;background:#fff7ed;color:#c2410c;border-radius:20px;padding:3px 10px}
+.pbi-dot{width:7px;height:7px;border-radius:50%;background:#f97316}
+.toolbar{background:#fff;border-bottom:1px solid #e5e7eb;padding:0 24px;height:44px;display:flex;align-items:center;flex-shrink:0}
+.toolbar-title{font-size:13px;font-weight:600}
+.toolbar-sub{font-size:11px;color:#888;margin-left:12px}
+.btn-refresh{margin-left:auto;font-size:12px;color:#666;background:none;border:1px solid #e0e0dc;border-radius:6px;padding:4px 10px;cursor:pointer}
+.report-wrap{flex:1;display:flex;flex-direction:column;padding:16px 24px}
+#state-loading,#state-error{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;gap:12px}
+.spinner{width:36px;height:36px;border:3px solid #e0e0dc;border-top-color:#f97316;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;font-weight:500}
+.loading-sub{font-size:12px;color:#888}
+.error-text{font-size:14px;font-weight:500;color:#dc2626}
+.error-detail{font-size:12px;color:#888;max-width:400px;line-height:1.5}
+.btn-retry{padding:8px 20px;background:#4a6fa5;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer}
+#report-container{flex:1;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;background:#fff;display:none}
+#report-container.visible{display:block}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">
+    <div class="logo-mark">SSS</div>
+    <div><div class="logo-text">SuperSpace Studio</div><div class="logo-sub">Power BI · Отчёт по проектам</div></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <a class="back-btn" href="/public/index.html">← KZKAR Dashboard</a>
+    <div class="live-badge"><div class="pbi-dot"></div>Power BI Live</div>
+  </div>
+</div>
+<div class="toolbar">
+  <div class="toolbar-title">Отчёт по проектам · SSS-Projects</div>
+  <div class="toolbar-sub" id="toolbar-sub">Загрузка...</div>
+  <button class="btn-refresh" onclick="loadReport()">↻ Обновить</button>
+</div>
+<div class="report-wrap">
+  <div id="state-loading">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loading-text">Подключаюсь к Power BI...</div>
+    <div class="loading-sub" id="loading-sub">Получаю токен доступа</div>
+  </div>
+  <div id="state-error" style="display:none">
+    <div style="font-size:32px">⚠️</div>
+    <div class="error-text" id="error-text">Ошибка подключения</div>
+    <div class="error-detail" id="error-detail"></div>
+    <button class="btn-retry" onclick="loadReport()">Попробовать снова</button>
+  </div>
+  <div id="report-container"></div>
+</div>
+<script>
+let pbiReport=null;
+function setLoading(t,s){document.getElementById('state-loading').style.display='flex';document.getElementById('state-error').style.display='none';document.getElementById('report-container').classList.remove('visible');document.getElementById('loading-text').textContent=t;document.getElementById('loading-sub').textContent=s||'';document.getElementById('toolbar-sub').textContent='Загрузка...'}
+function setError(t,d){document.getElementById('state-loading').style.display='none';document.getElementById('state-error').style.display='flex';document.getElementById('report-container').classList.remove('visible');document.getElementById('error-text').textContent=t;document.getElementById('error-detail').textContent=d||'';document.getElementById('toolbar-sub').textContent='Ошибка'}
+function setReady(u){document.getElementById('state-loading').style.display='none';document.getElementById('state-error').style.display='none';document.getElementById('report-container').classList.add('visible');document.getElementById('toolbar-sub').textContent='Обновлено '+u}
+async function loadReport(){
+  setLoading('Получаю токен...','Авторизация через Azure');
+  try{
+    const res=await fetch('/api/powerbi');
+    const data=await res.json();
+    if(!res.ok||!data.token){setError('Ошибка получения токена',data.error||JSON.stringify(data));return}
+    setLoading('Загружаю отчёт...','Встраиваю Power BI');
+    const container=document.getElementById('report-container');
+    const models=window['powerbi-client'].models;
+    const config={type:'report',id:data.reportId,embedUrl:data.embedUrl,accessToken:data.token,tokenType:models.TokenType.Embed,settings:{navContentPaneEnabled:true,filterPaneEnabled:true,localeSettings:{language:'ru',formatLocale:'ru'}}};
+    if(pbiReport){powerbi.reset(container)}
+    pbiReport=powerbi.embed(container,config);
+    pbiReport.on('loaded',()=>setReady(new Date().toLocaleTimeString('ru-RU')));
+    pbiReport.on('error',(e)=>setError('Ошибка загрузки отчёта',e.detail?.message||'Неизвестная ошибка'));
+  }catch(e){setError('Ошибка подключения',e.message)}
+}
+loadReport();
+</script>
+</body>
+</html>
